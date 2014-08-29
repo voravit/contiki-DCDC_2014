@@ -50,7 +50,7 @@
 #include "comm.h"
 #endif
 
-int Vref, Imax, Vmax;
+int Vref, Imax, Vmax, Vdis, Vhyst;
 int Vout, Vin, Il;
 int Vo, Vi, Io, Ii;
 int i, Vom, Vim, Iom, Iim, Prio;
@@ -114,7 +114,7 @@ int set_ctrl_params(ctrl_params_t var, float value)
 	float tmp;
 	switch (var)
 	{
-		case VREF:
+	case VREF:
 			if ((value >= 0) && (value <= Vmax))
 			{
 				tmp = (value * 4095 * DIVIDEND) /(Vdd * DIVIDER);
@@ -123,7 +123,25 @@ int set_ctrl_params(ctrl_params_t var, float value)
 			else
 				error=1;
 			break;
-		case IMAX:
+	case VDIS:
+			if ((value >= 0) && (value <= Vmax))
+			{
+				tmp = (value * 4095 * DIVIDEND) /(Vdd * DIVIDER);
+				Vdis = (int) tmp;
+			}
+			else
+				error=1;
+			break;
+	case VHYST:
+			if ((value >= 0) && (value <= Vmax) && (value >= Vdis)) 
+			{	// make it as mandatory to always have Vhyst >= Vdis
+				tmp = (value * 4095 * DIVIDEND) /(Vdd * DIVIDER);
+				Vhyst = (int) tmp;
+			}
+			else
+				error=1;
+			break;
+	case IMAX:
 			if ((value >= 0) && (value <= 6))
 			{
 				tmp = (value * 4095 * 0.151) / (Vdd * 2);
@@ -132,7 +150,7 @@ int set_ctrl_params(ctrl_params_t var, float value)
 			else
 				error=1;
 			break;
-		case VMAX:
+	case VMAX:
 			if ((value >= 0) && (value <= 30))
 			{
 				tmp = (value * 4095 * DIVIDEND) / (Vdd * DIVIDER);
@@ -141,7 +159,7 @@ int set_ctrl_params(ctrl_params_t var, float value)
 			else
 				error=1;
 			break;
-		case PRIO_REF:
+	case PRIO_REF:
 			if ((value >= 5) && (value <= 25))
 			{
 //				Prio = (int) value;
@@ -161,6 +179,12 @@ float get_ctrl_params(ctrl_params_t var)
 	{
 		case VREF:
 			result = (Vref * Vdd * DIVIDER) / (4095 * DIVIDEND);
+			break;
+		case VDIS:
+			result = (Vdis * Vdd * DIVIDER) / (4095 * DIVIDEND);
+			break;
+		case VHYST:
+			result = (Vhyst * Vdd * DIVIDER) / (4095 * DIVIDEND);
 			break;
 		case IMAX:
 			result = (Imax * Vdd * 2) / (4095 * 0.151);
@@ -204,8 +228,11 @@ float get_svector(svector_t var)
 void ValueInit(void)
 {
 	Vref = 0;
+	Vdis = 0;
+	Vhyst = 0;
 	Imax = (int)(I_IMAX * 4095 * 0.151) /(Vdd * 2);
 	Vmax = (int)(I_VMAX * 4095 * DIVIDEND) /(Vdd * DIVIDER);
+	Prio = 0;
 	Vo = 0;
 	Vi = 0;
 	Io = 0;
@@ -264,7 +291,14 @@ void MeanValues(void)
 
 void BangBang(void)
 {
-	if(Vref > 0 && Prio <= Vi)
+	static int LVD = 0;
+
+	if (Vin <= Vdis)
+		LVD = 1;
+	if (LVD && (Vin >= Vhyst))
+		LVD = 0;
+
+	if((!LVD) && (Vref > 0 && Prio <= Vi) && (user_allowed))
 	{
 		/* Safe maximum voltage limitation (it uses configuration number4) */
 		if (Vout > Vmax)

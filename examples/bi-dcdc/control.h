@@ -65,6 +65,8 @@ typedef struct
 typedef enum
 {
         VREF = 0,
+	VDIS,
+	VHYST,
         IMAX,
         VMAX,
         PRIO_REF,

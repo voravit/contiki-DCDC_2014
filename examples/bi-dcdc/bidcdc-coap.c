@@ -102,6 +102,29 @@ uip_ipaddr_t server_ipaddr;     // microgrid server ip address
 static struct etimer et;        // timer struct for client toggling
 char* service_urls[2] = {"mgserver/hello","mgserver/requestResource"};
 
+void do_report(void)
+{
+  printf("&: TXT=DCDC STATE=%s", get_converter_state());
+
+  float v_in =  get_svector(VIN);
+  float v_out =  get_svector(VOUT);
+  float i_in =  get_svector(IIN);
+  float i_out =  get_svector(IOUT);
+  float prio;
+
+  printf(" V_IN=%-5.2f V_OUT=%-5.2f I_IN=%-5.2f I_OUT=%-5.2f I_OUT=%-5.2f",
+         v_in, v_out, i_in, i_out, prio);
+
+  float v_ref =  get_ctrl_params(VREF);
+  float v_max =  get_ctrl_params(VMAX);
+  float i_max =  get_ctrl_params(IMAX);
+  float v_dis =  get_ctrl_params(VDIS);
+  float v_hyst =  get_ctrl_params(VHYST);
+
+  printf(" V_REF=%-5.2f V_MAX=%-5.2f I_MAX=%-5.2f V_DIS=%-5.2f V_HYST=%-5.2f\n",
+         v_ref, v_max, i_max, v_dis, v_hyst);
+}
+
 /* This function is will be passed to COAP_BLOCKING_REQUEST() to handle responses. */
 void
 client_chunk_handler(void *response)
@@ -898,6 +921,17 @@ PROCESS_THREAD(rest_server_example, ev, data)
 #if defined (PLATFORM_HAS_ADC) && REST_RES_CTRLPARAM
   rest_activate_resource(&resource_ctrlparam);
 #endif
+
+		etimer_set(&et, 5 * CLOCK_SECOND);	// report interval
+		while(1) {
+			PROCESS_YIELD();
+			if (etimer_expired(&et)) {
+				PRINTF("Sending periodic report!\n");
+				do_report(); // will need to send report as a coap message here
+				toggleLeds();
+				etimer_reset(&et);
+			}
+		}
 
    PROCESS_END();
 }
